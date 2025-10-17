@@ -5,6 +5,8 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import type { PermissionCreate } from '@/types/api'
+import { useToast } from '@/stores/toastStore'
 
 export const Route = createFileRoute('/_authenticated/admin/permissions')({
   component: PermissionsPage,
@@ -14,13 +16,14 @@ const permissionSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   resource: z.string().min(1, 'Resource is required'),
-  action: z.enum(['CREATE', 'READ', 'UPDATE', 'DELETE']),
+  action: z.string().min(1, 'Action is required'),
 })
 
 type PermissionFormData = z.infer<typeof permissionSchema>
 
 function PermissionsPage() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   const { data: permissions, isLoading } = useQuery({
@@ -29,11 +32,15 @@ function PermissionsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: permissionApi.create,
+    mutationFn: (data: PermissionCreate) => permissionApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] })
       setIsCreateModalOpen(false)
       resetForm()
+      toast.success('Permission created successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to create permission')
     },
   })
 
@@ -41,6 +48,10 @@ function PermissionsPage() {
     mutationFn: permissionApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] })
+      toast.success('Permission deleted successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to delete permission')
     },
   })
 
@@ -72,21 +83,20 @@ function PermissionsPage() {
   }
 
   // Group permissions by resource
-  const groupedPermissions = permissions?.reduce(
-    (acc, permission) => {
-      if (!acc[permission.resource]) {
-        acc[permission.resource] = []
-      }
-      acc[permission.resource].push(permission)
-      return acc
-    },
-    {} as Record<string, typeof permissions>
-  )
+  const groupedPermissions = permissions?.reduce((acc, permission) => {
+    if (!acc[permission.resource]) {
+      acc[permission.resource] = []
+    }
+    acc[permission.resource].push(permission)
+    return acc
+  }, {} as Record<string, typeof permissions>)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Permission Management</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          Permission Management
+        </h1>
         <button
           onClick={() => setIsCreateModalOpen(true)}
           className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
@@ -97,10 +107,7 @@ function PermissionsPage() {
 
       <div className="space-y-6">
         {Object.entries(groupedPermissions || {}).map(([resource, perms]) => (
-          <div
-            key={resource}
-            className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden"
-          >
+          <div key={resource} className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
                 {resource}
@@ -133,17 +140,7 @@ function PermissionsPage() {
                       {permission.description || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          permission.action === 'CREATE'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            : permission.action === 'READ'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                              : permission.action === 'UPDATE'
-                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        }`}
-                      >
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                         {permission.action}
                       </span>
                     </td>
@@ -181,7 +178,9 @@ function PermissionsPage() {
                   placeholder="e.g., user:create"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
-                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -201,15 +200,12 @@ function PermissionsPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Action
                 </label>
-                <select
+                <input
                   {...register('action')}
+                  type="text"
+                  placeholder="e.g., CREATE, READ, UPDATE, DELETE"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="CREATE">CREATE</option>
-                  <option value="READ">READ</option>
-                  <option value="UPDATE">UPDATE</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
+                />
                 {errors.action && (
                   <p className="mt-1 text-sm text-red-600">{errors.action.message}</p>
                 )}

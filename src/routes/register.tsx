@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { authApi } from '@/lib/api'
 import { useState } from 'react'
+import type { UserCreate } from '@/types/api'
 
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
@@ -38,7 +39,7 @@ function RegisterPage() {
   })
 
   const registerMutation = useMutation({
-    mutationFn: authApi.register,
+    mutationFn: (data: UserCreate) => authApi.register(data),
     onSuccess: () => {
       setSuccess(true)
       setTimeout(() => {
@@ -46,7 +47,14 @@ function RegisterPage() {
       }, 2000)
     },
     onError: (error: any) => {
-      setError(error.response?.data?.detail || 'Registration failed. Please try again.')
+      const detail = error.response?.data?.detail
+      if (typeof detail === 'string') {
+        setError(detail)
+      } else if (Array.isArray(detail)) {
+        setError(detail.map((e) => e.msg).join(', '))
+      } else {
+        setError('Registration failed. Please try again.')
+      }
     },
   })
 
@@ -77,10 +85,7 @@ function RegisterPage() {
           )}
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Username
               </label>
               <input
@@ -92,16 +97,11 @@ function RegisterPage() {
                 placeholder="Username"
               />
               {errors.username && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.username.message}
-                </p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username.message}</p>
               )}
             </div>
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email
               </label>
               <input
@@ -113,16 +113,11 @@ function RegisterPage() {
                 placeholder="Email address"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.email.message}
-                </p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>
               )}
             </div>
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Password
               </label>
               <input
@@ -134,16 +129,11 @@ function RegisterPage() {
                 placeholder="Password"
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.password.message}
-                </p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password.message}</p>
               )}
             </div>
             <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Confirm Password
               </label>
               <input
@@ -155,9 +145,7 @@ function RegisterPage() {
                 placeholder="Confirm password"
               />
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.confirmPassword.message}
-                </p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword.message}</p>
               )}
             </div>
           </div>

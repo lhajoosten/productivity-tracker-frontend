@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'success'
   size?: 'sm' | 'md' | 'lg'
   isLoading?: boolean
   children: ReactNode
@@ -17,15 +17,37 @@ export function Button({
   ...props
 }: ButtonProps) {
   const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95'
 
   const variantStyles = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
+    primary:
+      'bg-light-primary-600 hover:bg-light-primary-700 text-white focus:ring-light-primary-500 ' +
+      'dark:bg-dark-primary-600 dark:hover:bg-dark-primary-700 dark:focus:ring-dark-primary-500 ' +
+      'solarized:bg-solarized-primary-600 solarized:hover:bg-solarized-primary-700 solarized:focus:ring-solarized-primary-500 ' +
+      'alt-light:bg-alt-light-primary-600 alt-light:hover:bg-alt-light-primary-700 alt-light:focus:ring-alt-light-primary-500 ' +
+      'alt-dark:bg-alt-dark-primary-600 alt-dark:hover:bg-alt-dark-primary-700 alt-dark:focus:ring-alt-dark-primary-500',
     secondary:
-      'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 focus:ring-gray-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+      'bg-light-secondary-100 hover:bg-light-secondary-200 text-light-secondary-900 focus:ring-light-secondary-500 border border-light-secondary-200 ' +
+      'dark:bg-dark-secondary-700 dark:hover:bg-dark-secondary-600 dark:text-dark-secondary-100 dark:focus:ring-dark-secondary-500 dark:border-dark-secondary-600 ' +
+      'solarized:bg-solarized-secondary-200 solarized:hover:bg-solarized-secondary-300 solarized:text-solarized-secondary-900 solarized:focus:ring-solarized-secondary-500 solarized:border-solarized-secondary-300 ' +
+      'alt-light:bg-alt-light-secondary-100 alt-light:hover:bg-alt-light-secondary-200 alt-light:text-alt-light-secondary-900 alt-light:focus:ring-alt-light-secondary-500 alt-light:border-alt-light-secondary-200 ' +
+      'alt-dark:bg-alt-dark-secondary-700 alt-dark:hover:bg-alt-dark-secondary-600 alt-dark:text-alt-dark-secondary-100 alt-dark:focus:ring-alt-dark-secondary-500 alt-dark:border-alt-dark-secondary-600',
+    danger:
+      'bg-error-600 hover:bg-error-700 text-white focus:ring-error-500',
+    success:
+      'bg-success-600 hover:bg-success-700 text-white focus:ring-success-500',
     ghost:
-      'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-500',
+      'text-light-secondary-700 hover:bg-light-secondary-100 focus:ring-light-secondary-500 ' +
+      'dark:text-dark-secondary-300 dark:hover:bg-dark-secondary-800 dark:focus:ring-dark-secondary-500 ' +
+      'solarized:text-solarized-secondary-700 solarized:hover:bg-solarized-secondary-200 solarized:focus:ring-solarized-secondary-500 ' +
+      'alt-light:text-alt-light-secondary-700 alt-light:hover:bg-alt-light-secondary-100 alt-light:focus:ring-alt-light-secondary-500 ' +
+      'alt-dark:text-alt-dark-secondary-300 alt-dark:hover:bg-alt-dark-secondary-800 alt-dark:focus:ring-alt-dark-secondary-500',
+    outline:
+      'border-2 border-light-primary-500 text-light-primary-700 hover:bg-light-primary-50 focus:ring-light-primary-500 ' +
+      'dark:border-dark-primary-500 dark:text-dark-primary-400 dark:hover:bg-dark-primary-900/20 dark:focus:ring-dark-primary-500 ' +
+      'solarized:border-solarized-primary-500 solarized:text-solarized-primary-700 solarized:hover:bg-solarized-primary-50 solarized:focus:ring-solarized-primary-500 ' +
+      'alt-light:border-alt-light-primary-500 alt-light:text-alt-light-primary-700 alt-light:hover:bg-alt-light-primary-50 alt-light:focus:ring-alt-light-primary-500 ' +
+      'alt-dark:border-alt-dark-primary-500 alt-dark:text-alt-dark-primary-400 alt-dark:hover:bg-alt-dark-primary-900/20 alt-dark:focus:ring-alt-dark-primary-500',
   }
 
   const sizeStyles = {

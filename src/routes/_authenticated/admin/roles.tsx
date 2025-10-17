@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { Role, Permission } from '@/types/api'
+import type { Role, Permission, RoleCreate } from '@/types/api'
+import { useToast } from '@/stores/toastStore'
 
 export const Route = createFileRoute('/_authenticated/admin/roles')({
   component: RolesPage,
@@ -20,6 +21,7 @@ type RoleFormData = z.infer<typeof roleSchema>
 
 function RolesPage() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false)
@@ -35,11 +37,15 @@ function RolesPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: roleApi.create,
+    mutationFn: (data: RoleCreate) => roleApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] })
       setIsCreateModalOpen(false)
       resetForm()
+      toast.success('Role created successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to create role')
     },
   })
 
@@ -47,6 +53,10 @@ function RolesPage() {
     mutationFn: roleApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] })
+      toast.success('Role deleted successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to delete role')
     },
   })
 
@@ -57,6 +67,10 @@ function RolesPage() {
       queryClient.invalidateQueries({ queryKey: ['roles'] })
       setIsPermissionModalOpen(false)
       setSelectedRole(null)
+      toast.success('Permissions updated successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to update permissions')
     },
   })
 
@@ -169,7 +183,9 @@ function RolesPage() {
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
-                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

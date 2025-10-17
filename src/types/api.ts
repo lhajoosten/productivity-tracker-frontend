@@ -22,6 +22,7 @@ export interface UserListResponse {
   is_active: boolean
   is_superuser: boolean
   created_at: string
+  roles: Role[]
 }
 
 export interface UserCreate {
@@ -125,6 +126,9 @@ export interface LoginRequest {
 export interface LoginResponse {
   message: string
   user: UserListResponse
+  access_token: string
+  refresh_token: string
+  token_type: string
 }
 
 export interface Token {

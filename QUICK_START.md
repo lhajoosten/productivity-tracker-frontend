@@ -52,7 +52,7 @@ cd ~/projects/productivity-tracker-frontend
 npm run dev
 ```
 
-Frontend will run at: http://localhost:3000
+Frontend will run at: http://localhost:5173
 
 ### 3. Create a Superuser (if not already done)
 ```bash
@@ -65,8 +65,8 @@ Follow the prompts to create a superuser account.
 ## Testing the Application
 
 ### Test Regular User Flow
-1. Open http://localhost:3000
-2. Click "Register" or go to http://localhost:3000/register
+1. Open http://localhost:5173
+2. Click "Register" or go to http://localhost:5173/register
 3. Create a new account (username, email, password)
 4. You'll be redirected to login
 5. Login with your credentials
@@ -76,11 +76,11 @@ Follow the prompts to create a superuser account.
 ### Test Admin Flow (Superuser)
 1. Login with your superuser credentials
 2. You'll see additional "Roles" and "Permissions" links in the nav
-3. Go to http://localhost:3000/admin/roles
+3. Go to http://localhost:5173/admin/roles
    - Create new roles
    - Assign permissions to roles
    - View all roles and their permissions
-4. Go to http://localhost:3000/admin/permissions
+4. Go to http://localhost:5173/admin/permissions
    - Create new permissions (specify resource and action)
    - View all permissions grouped by resource
    - Delete permissions
@@ -180,7 +180,7 @@ server: {
 ## Troubleshooting
 
 ### Port Already in Use
-If port 3000 is in use, Vite will automatically try 3001, 3002, etc.
+If port 5173 is in use, Vite will automatically try 3001, 3002, etc.
 
 ### Backend Not Running
 Make sure the backend is running at http://localhost:8000
@@ -188,8 +188,8 @@ Check with: `curl http://localhost:8000/health`
 
 ### CORS Errors
 The Vite proxy should handle this. If you see CORS errors, make sure:
-1. Backend CORS is configured for http://localhost:3000
-2. You're accessing the frontend via the proxy at localhost:3000
+1. Backend CORS is configured for http://localhost:5173
+2. You're accessing the frontend via the proxy at localhost:5173
 
 ### Token Refresh Issues
 If you get stuck in a login loop:

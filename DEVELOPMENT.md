@@ -37,9 +37,9 @@ Password: [your password from backend setup]
    ```
 
 3. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:3456
+   - API Docs: http://localhost:3456/docs
 
 ## File-Based Routing
 
