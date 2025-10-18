@@ -1,65 +1,83 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type ThemeMode = 'light' | 'dark' | 'solarized' | 'alt-light' | 'alt-dark' | 'auto'
+export type ThemeMode = 'light' | 'dark' | 'nature' | 'solarized'
 
 interface ThemeState {
   mode: ThemeMode
-  effectiveTheme: 'light' | 'dark' | 'solarized' | 'alt-light' | 'alt-dark'
   setMode: (mode: ThemeMode) => void
 }
 
-const getSystemTheme = (): 'light' | 'dark' => {
-  if (typeof window === 'undefined') return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
+const applyTheme = (theme: ThemeMode) => {
+  if (typeof document === 'undefined') return
 
-const applyTheme = (theme: 'light' | 'dark' | 'solarized' | 'alt-light' | 'alt-dark') => {
   const root = document.documentElement
-  root.classList.remove('light', 'dark', 'solarized', 'alt-light', 'alt-dark')
+
+  // Debug logging
+  console.log('Applying theme:', theme)
+
+  // Remove ALL possible theme classes
+  root.classList.remove('light', 'dark', 'nature', 'solarized')
+
+  // Add the selected theme class
   root.classList.add(theme)
+
+  // Debug logging
+  console.log('HTML classes after applying theme:', root.className)
 }
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      mode: 'auto',
-      effectiveTheme: getSystemTheme(),
+      mode: 'light',
 
       setMode: (mode) => {
-        let effectiveTheme: 'light' | 'dark' | 'solarized' | 'alt-light' | 'alt-dark'
-
-        if (mode === 'auto') {
-          effectiveTheme = getSystemTheme()
-        } else {
-          effectiveTheme = mode
-        }
-
-        applyTheme(effectiveTheme)
-        set({ mode, effectiveTheme })
+        console.log('setMode called with:', mode)
+        applyTheme(mode)
+        set({ mode })
       },
     }),
     {
       name: 'theme-storage',
       onRehydrateStorage: () => (state) => {
-        if (state) {
-          const effectiveTheme = state.mode === 'auto' ? getSystemTheme() : state.effectiveTheme
-          applyTheme(effectiveTheme)
-          state.effectiveTheme = effectiveTheme
+        console.log('Rehydrating theme store:', state)
+        if (state?.mode) {
+          applyTheme(state.mode)
         }
       },
     }
   )
 )
 
-// Listen for system theme changes
+// Initialize theme on module load
 if (typeof window !== 'undefined') {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    const store = useThemeStore.getState()
-    if (store.mode === 'auto') {
-      const newTheme = e.matches ? 'dark' : 'light'
-      applyTheme(newTheme)
-      useThemeStore.setState({ effectiveTheme: newTheme })
+  // Wait for DOM to be ready
+  const initTheme = () => {
+    const stored = localStorage.getItem('theme-storage')
+    console.log('Stored theme data:', stored)
+
+    if (stored) {
+      try {
+        const { state } = JSON.parse(stored)
+        console.log('Parsed theme state:', state)
+        if (state?.mode) {
+          applyTheme(state.mode)
+        } else {
+          applyTheme('light')
+        }
+      } catch (e) {
+        console.error('Error parsing theme:', e)
+        applyTheme('light')
+      }
+    } else {
+      console.log('No stored theme, using light')
+      applyTheme('light')
     }
-  })
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTheme)
+  } else {
+    initTheme()
+  }
 }

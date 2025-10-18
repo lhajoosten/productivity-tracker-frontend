@@ -17,6 +17,7 @@ import type {
   AssignRolesToUser,
   HealthResponse,
   Token,
+  RefreshTokenRequest,
 } from '@/types/api'
 
 // Create axios instance
@@ -53,11 +54,7 @@ api.interceptors.response.use(
         if (!refreshToken) throw new Error('No refresh token')
 
         // Send refresh_token in body
-        await axios.post(
-          '/api/v1/auth/refresh',
-          { refresh_token: refreshToken },
-          { withCredentials: true }
-        )
+        await api.post('/auth/refresh', { refresh_token: refreshToken } as RefreshTokenRequest)
 
         return api(originalRequest)
       } catch (refreshError) {
@@ -77,16 +74,23 @@ api.interceptors.response.use(
 
 export const authApi = {
   register: (data: UserCreate) =>
-    api.post<LoginResponse>('/auth/register', data).then((res) => res.data),
+    api.post<User>('/auth/register', data).then((res) => res.data),
 
   login: (data: LoginRequest) =>
     api.post<LoginResponse>('/auth/login', data).then((res) => res.data),
 
-  refresh: () => api.post<Token>('/auth/refresh').then((res) => res.data),
+  refresh: (data: RefreshTokenRequest) =>
+    api.post<Token>('/auth/refresh', data).then((res) => res.data),
 
   logout: () => api.post('/auth/logout').then((res) => res.data),
 
   me: () => api.get<User>('/auth/me').then((res) => res.data),
+
+  updateMe: (data: UserUpdate) =>
+    api.put<User>('/auth/me', data).then((res) => res.data),
+
+  updatePassword: (data: UserPasswordUpdate) =>
+    api.put<User>('/auth/me/password', data).then((res) => res.data),
 }
 
 // ============================================================================
@@ -94,25 +98,26 @@ export const authApi = {
 // ============================================================================
 
 export const userApi = {
-  list: () => api.get<UserListResponse[]>('/auth/users').then((res) => res.data),
+  list: (skip = 0, limit = 100) =>
+    api.get<UserListResponse[]>('/auth/users', { params: { skip, limit } }).then((res) => res.data),
 
-  get: (userId: string) => api.get<User>(`/auth/users/${userId}`).then((res) => res.data),
+  get: (userId: string) =>
+    api.get<User>(`/auth/users/${userId}`).then((res) => res.data),
 
   update: (userId: string, data: UserUpdate) =>
     api.put<User>(`/auth/users/${userId}`, data).then((res) => res.data),
 
-  delete: (userId: string) => api.delete(`/auth/users/${userId}`).then((res) => res.data),
+  delete: (userId: string) =>
+    api.delete(`/auth/users/${userId}`).then((res) => res.data),
 
-  updateMe: (data: UserUpdate) => api.put<User>('/auth/me', data).then((res) => res.data),
+  activate: (userId: string) =>
+    api.post<User>(`/auth/users/${userId}/activate`).then((res) => res.data),
 
-  updatePassword: (data: UserPasswordUpdate) =>
-    api.put<User>('/auth/me/password', data).then((res) => res.data),
+  deactivate: (userId: string) =>
+    api.post<User>(`/auth/users/${userId}/deactivate`).then((res) => res.data),
 
   assignRoles: (userId: string, data: AssignRolesToUser) =>
     api.post<User>(`/auth/users/${userId}/roles`, data).then((res) => res.data),
-
-  removeRole: (userId: string, roleId: string) =>
-    api.delete<User>(`/auth/users/${userId}/roles/${roleId}`).then((res) => res.data),
 }
 
 // ============================================================================
@@ -120,19 +125,29 @@ export const userApi = {
 // ============================================================================
 
 export const roleApi = {
-  list: () => api.get<Role[]>('/roles').then((res) => res.data),
+  list: (skip = 0, limit = 100) =>
+    api.get<Role[]>('/roles', { params: { skip, limit } }).then((res) => res.data),
 
-  create: (data: RoleCreate) => api.post<Role>('/roles', data).then((res) => res.data),
+  create: (data: RoleCreate) =>
+    api.post<Role>('/roles', data).then((res) => res.data),
 
-  get: (roleId: string) => api.get<Role>(`/roles/${roleId}`).then((res) => res.data),
+  get: (roleId: string) =>
+    api.get<Role>(`/roles/${roleId}`).then((res) => res.data),
+
+  getByName: (roleName: string) =>
+    api.get<Role>(`/roles/name/${roleName}`).then((res) => res.data),
 
   update: (roleId: string, data: RoleUpdate) =>
     api.put<Role>(`/roles/${roleId}`, data).then((res) => res.data),
 
-  delete: (roleId: string) => api.delete(`/roles/${roleId}`).then((res) => res.data),
+  delete: (roleId: string) =>
+    api.delete(`/roles/${roleId}`).then((res) => res.data),
 
   assignPermissions: (roleId: string, data: AssignPermissionsToRole) =>
     api.post<Role>(`/roles/${roleId}/permissions`, data).then((res) => res.data),
+
+  addPermission: (roleId: string, permissionId: string) =>
+    api.post<Role>(`/roles/${roleId}/permissions/${permissionId}`).then((res) => res.data),
 
   removePermission: (roleId: string, permissionId: string) =>
     api.delete<Role>(`/roles/${roleId}/permissions/${permissionId}`).then((res) => res.data),
@@ -143,13 +158,20 @@ export const roleApi = {
 // ============================================================================
 
 export const permissionApi = {
-  list: () => api.get<Permission[]>('/permissions').then((res) => res.data),
+  list: (skip = 0, limit = 100) =>
+    api.get<Permission[]>('/permissions', { params: { skip, limit } }).then((res) => res.data),
 
   create: (data: PermissionCreate) =>
     api.post<Permission>('/permissions', data).then((res) => res.data),
 
   get: (permissionId: string) =>
     api.get<Permission>(`/permissions/${permissionId}`).then((res) => res.data),
+
+  getByName: (permissionName: string) =>
+    api.get<Permission>(`/permissions/name/${permissionName}`).then((res) => res.data),
+
+  getByResource: (resource: string) =>
+    api.get<Permission[]>(`/permissions/resource/${resource}`).then((res) => res.data),
 
   update: (permissionId: string, data: PermissionUpdate) =>
     api.put<Permission>(`/permissions/${permissionId}`, data).then((res) => res.data),

@@ -45,6 +45,8 @@ export const useToast = () => {
   const addToast = useToastStore((state) => state.addToast)
 
   return {
+    addToast: (message: string, type: ToastType = 'info', duration?: number) =>
+      addToast({ type, message, duration }),
     success: (message: string, duration?: number) =>
       addToast({ type: 'success', message, duration }),
     error: (message: string, duration?: number) => addToast({ type: 'error', message, duration }),

@@ -23,3 +23,5 @@ routeTree.gen.ts
 .cache
 .vite
 .turbo
+
+.idea/

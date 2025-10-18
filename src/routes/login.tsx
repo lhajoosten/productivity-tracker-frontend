@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,6 +10,7 @@ import type { LoginRequest } from '@/types/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -51,41 +52,31 @@ function LoginPage() {
     },
   })
 
-
   const onSubmit = (data: LoginFormData) => {
     setError(null)
     loginMutation.mutate(data)
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br
-                    from-light-secondary-50 via-light-primary-50 to-light-secondary-100
-                    dark:from-dark-secondary-950 dark:via-dark-primary-950 dark:to-dark-secondary-900
-                    solarized:from-solarized-secondary-50 solarized:via-solarized-primary-50 solarized:to-solarized-secondary-100
-                    alt-light:from-alt-light-secondary-50 alt-light:via-alt-light-primary-50 alt-light:to-alt-light-secondary-100
-                    alt-dark:from-alt-dark-secondary-950 alt-dark:via-alt-dark-primary-950 alt-dark:to-alt-dark-secondary-900"
-    >
-      <div className="max-w-md w-full animate-scale-in">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-background via-secondary/30 to-background">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
+      <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h2
-            className="text-3xl font-bold text-light-secondary-900 dark:text-dark-secondary-50
-                         solarized:text-solarized-secondary-900 alt-light:text-alt-light-secondary-900 alt-dark:text-alt-dark-secondary-50"
-          >
+          <h2 className="text-3xl font-bold text-foreground">
             Welcome Back
           </h2>
-          <p
-            className="mt-2 text-light-secondary-600 dark:text-dark-secondary-400
-                        solarized:text-solarized-secondary-700 alt-light:text-alt-light-secondary-600 alt-dark:text-alt-dark-secondary-400"
-          >
+          <p className="mt-2 text-muted-foreground">
             Sign in to your account to continue
           </p>
         </div>
 
-        <Card variant="elevated">
+        <Card className="p-8">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             {error && (
-              <div className="bg-error-50 dark:bg-error-900/20 border border-error-400 text-error-700 dark:text-error-400 px-4 py-3 rounded-lg">
+              <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg">
                 {error}
               </div>
             )}
@@ -112,13 +103,18 @@ function LoginPage() {
 
             <Button
               type="submit"
-              variant="primary"
-              size="lg"
               className="w-full"
-              isLoading={loginMutation.isPending}
+              disabled={loginMutation.isPending}
             >
-              {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
+              {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
             </Button>
+
+            <div className="text-center text-sm">
+              <span className="text-muted-foreground">Don't have an account? </span>
+              <Link to="/register" className="text-primary hover:underline font-medium">
+                Register here
+              </Link>
+            </div>
           </form>
         </Card>
       </div>

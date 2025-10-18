@@ -5,14 +5,15 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { UserListResponse, UserUpdate } from '@/types/api'
+import type { UserListResponse, UserUpdate, AssignRolesToUser, User } from '@/types/api'
 import { useToast } from '@/stores/toastStore'
-import { Table, TableHeader, TableBody, TableRow, TableCell } from '@/components/ui/Table'
+import { Table } from '@/components/ui/Table'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Card } from '@/components/ui/Card'
 
 export const Route = createFileRoute('/_authenticated/admin/users')({
   component: UsersPage,
@@ -28,20 +29,29 @@ type UserUpdateFormData = z.infer<typeof userUpdateSchema>
 
 function UsersPage() {
   const queryClient = useQueryClient()
-  const toast = useToast()
-  const [selectedUser, setSelectedUser] = useState<UserListResponse | null>(null)
+  const { addToast } = useToast()
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
 
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
-    queryFn: userApi.list,
+    queryFn: () => userApi.list(),
   })
 
   const { data: roles } = useQuery({
     queryKey: ['roles'],
-    queryFn: roleApi.list,
+    queryFn: () => roleApi.list(),
+  })
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<UserUpdateFormData>({
+    resolver: zodResolver(userUpdateSchema),
   })
 
   const updateMutation = useMutation({
@@ -49,201 +59,212 @@ function UsersPage() {
       userApi.update(userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      addToast('User updated successfully', 'success')
       setIsEditModalOpen(false)
       setSelectedUser(null)
-      toast.success('User updated successfully')
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to update user')
+      addToast(error.response?.data?.detail || 'Failed to update user', 'error')
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: userApi.delete,
+    mutationFn: (userId: string) => userApi.delete(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success('User deleted successfully')
+      addToast('User deleted successfully', 'success')
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to delete user')
+      addToast(error.response?.data?.detail || 'Failed to delete user', 'error')
+    },
+  })
+
+  const activateMutation = useMutation({
+    mutationFn: (userId: string) => userApi.activate(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      addToast('User activated successfully', 'success')
+    },
+    onError: (error: any) => {
+      addToast(error.response?.data?.detail || 'Failed to activate user', 'error')
+    },
+  })
+
+  const deactivateMutation = useMutation({
+    mutationFn: (userId: string) => userApi.deactivate(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      addToast('User deactivated successfully', 'success')
+    },
+    onError: (error: any) => {
+      addToast(error.response?.data?.detail || 'Failed to deactivate user', 'error')
     },
   })
 
   const assignRolesMutation = useMutation({
-    mutationFn: ({ userId, roleIds }: { userId: string; roleIds: string[] }) =>
-      userApi.assignRoles(userId, { role_ids: roleIds }),
+    mutationFn: ({ userId, data }: { userId: string; data: AssignRolesToUser }) =>
+      userApi.assignRoles(userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      addToast('Roles assigned successfully', 'success')
       setIsRoleModalOpen(false)
       setSelectedUser(null)
-      setSelectedRoles([])
-      toast.success('Roles assigned successfully')
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to assign roles')
+      addToast(error.response?.data?.detail || 'Failed to assign roles', 'error')
     },
   })
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset: resetForm,
-    setValue,
-  } = useForm<UserUpdateFormData>({
-    resolver: zodResolver(userUpdateSchema),
-  })
-
-  const handleEditUser = (user: UserListResponse) => {
-    setSelectedUser(user)
-    setValue('username', user.username)
-    setValue('email', user.email)
-    setValue('is_active', user.is_active)
+  const handleEditUser = async (user: UserListResponse) => {
+    const fullUser = await userApi.get(user.id)
+    setSelectedUser(fullUser)
+    reset({
+      username: fullUser.username,
+      email: fullUser.email,
+      is_active: fullUser.is_active,
+    })
     setIsEditModalOpen(true)
   }
 
-  const handleAssignRoles = (user: UserListResponse) => {
-    setSelectedUser(user)
-    setSelectedRoles(user.roles.map((r) => r.id))
+  const handleManageRoles = async (user: UserListResponse) => {
+    const fullUser = await userApi.get(user.id)
+    setSelectedUser(fullUser)
+    setSelectedRoles(fullUser.roles.map((r) => r.id))
     setIsRoleModalOpen(true)
   }
 
-  const onSubmitUpdate = (data: UserUpdateFormData) => {
-    if (!selectedUser) return
-    updateMutation.mutate({ userId: selectedUser.id, data })
-  }
-
-  const handleDelete = (userId: string, username: string) => {
-    if (confirm(`Are you sure you want to delete user "${username}"?`)) {
-      deleteMutation.mutate(userId)
-    }
-  }
-
-  const handleSaveRoles = () => {
-    if (!selectedUser) return
-    assignRolesMutation.mutate({ userId: selectedUser.id, roleIds: selectedRoles })
-  }
-
-  const toggleRole = (roleId: string) => {
+  const handleToggleRole = (roleId: string) => {
     setSelectedRoles((prev) =>
       prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
     )
   }
 
+  const onSubmitUpdate = (data: UserUpdateFormData) => {
+    if (selectedUser) {
+      updateMutation.mutate({ userId: selectedUser.id, data })
+    }
+  }
+
+  const handleAssignRoles = () => {
+    if (selectedUser) {
+      assignRolesMutation.mutate({
+        userId: selectedUser.id,
+        data: { role_ids: selectedRoles },
+      })
+    }
+  }
+
   if (usersLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-96">
         <LoadingSpinner size="lg" />
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white solarized:text-solarized-base03">
-          User Management
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400 solarized:text-solarized-base01">
-          Manage users, their roles, and access permissions
-        </p>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage users, their roles, and permissions
+          </p>
+        </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <Card>
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableCell isHeader>Username</TableCell>
-              <TableCell isHeader>Email</TableCell>
-              <TableCell isHeader>Status</TableCell>
-              <TableCell isHeader>Roles</TableCell>
-              <TableCell isHeader>Type</TableCell>
-              <TableCell isHeader>Created</TableCell>
-              <TableCell isHeader>Actions</TableCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Roles</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
             {users?.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 h-10 w-10 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center">
-                      <span className="text-primary-600 dark:text-primary-400 font-semibold">
-                        {user.username.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="ml-4">
-                      <div className="font-medium text-gray-900 dark:text-white solarized:text-solarized-base03">
-                        {user.username}
-                      </div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-gray-600 dark:text-gray-400 solarized:text-solarized-base01">
-                    {user.email}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={user.is_active ? 'success' : 'danger'}>
-                    {user.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
+              <tr key={user.id}>
+                <td className="font-medium">{user.username}</td>
+                <td>{user.email}</td>
+                <td>
+                  {user.is_active ? (
+                    <Badge variant="success">Active</Badge>
+                  ) : (
+                    <Badge variant="error">Inactive</Badge>
+                  )}
+                  {user.is_superuser && (
+                    <Badge variant="primary" className="ml-2">
+                      Admin
+                    </Badge>
+                  )}
+                </td>
+                <td>
                   <div className="flex flex-wrap gap-1">
-                    {user.roles.length > 0 ? (
-                      user.roles.map((role) => (
-                        <Badge key={role.id} variant="primary">
-                          {role.name}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-gray-400 dark:text-gray-500 text-sm italic">
-                        No roles
-                      </span>
-                    )}
+                    {user.roles?.map((role) => (
+                      <Badge key={role.id} variant="secondary">
+                        {role.name}
+                      </Badge>
+                    ))}
                   </div>
-                </TableCell>
-                <TableCell>
-                  {user.is_superuser && <Badge variant="warning">Superuser</Badge>}
-                </TableCell>
-                <TableCell>
-                  <span className="text-gray-600 dark:text-gray-400 solarized:text-solarized-base01 text-sm">
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
+                </td>
+                <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                <td>
+                  <div className="flex gap-2">
                     <Button
-                      variant="outline"
                       size="sm"
+                      variant="secondary"
                       onClick={() => handleEditUser(user)}
                     >
                       Edit
                     </Button>
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() => handleAssignRoles(user)}
+                      variant="secondary"
+                      onClick={() => handleManageRoles(user)}
                     >
                       Roles
                     </Button>
+                    {user.is_active ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => deactivateMutation.mutate(user.id)}
+                      >
+                        Deactivate
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => activateMutation.mutate(user.id)}
+                      >
+                        Activate
+                      </Button>
+                    )}
                     {!user.is_superuser && (
                       <Button
-                        variant="danger"
                         size="sm"
-                        onClick={() => handleDelete(user.id, user.username)}
+                        variant="danger"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this user?')) {
+                            deleteMutation.mutate(user.id)
+                          }
+                        }}
                       >
                         Delete
                       </Button>
                     )}
                   </div>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
+          </tbody>
         </Table>
-      </div>
+      </Card>
 
       {/* Edit User Modal */}
       <Modal
@@ -251,109 +272,93 @@ function UsersPage() {
         onClose={() => {
           setIsEditModalOpen(false)
           setSelectedUser(null)
-          resetForm()
         }}
-        title={`Edit User: ${selectedUser?.username}`}
+        title="Edit User"
       >
         <form onSubmit={handleSubmit(onSubmitUpdate)} className="space-y-4">
           <Input
-            label="Username"
             {...register('username')}
+            label="Username"
             error={errors.username?.message}
           />
           <Input
+            {...register('email')}
             label="Email"
             type="email"
-            {...register('email')}
             error={errors.email?.message}
           />
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
+              id="is_active"
               {...register('is_active')}
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              className="rounded border-border"
             />
-            <label className="ml-2 block text-sm text-gray-900 dark:text-gray-100">
+            <label htmlFor="is_active" className="text-sm font-medium">
               Active
             </label>
           </div>
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex gap-2 justify-end">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => {
-                setIsEditModalOpen(false)
-                resetForm()
-              }}
+              variant="secondary"
+              onClick={() => setIsEditModalOpen(false)}
             >
               Cancel
             </Button>
-            <Button type="submit" isLoading={updateMutation.isPending}>
-              Save Changes
+            <Button type="submit" disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Assign Roles Modal */}
+      {/* Manage Roles Modal */}
       <Modal
         isOpen={isRoleModalOpen}
         onClose={() => {
           setIsRoleModalOpen(false)
           setSelectedUser(null)
-          setSelectedRoles([])
         }}
-        title={`Assign Roles: ${selectedUser?.username}`}
+        title="Manage User Roles"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400 solarized:text-solarized-base01">
-            Select roles to assign to this user:
+          <p className="text-sm text-muted-foreground">
+            Select roles for {selectedUser?.username}
           </p>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div className="space-y-2">
             {roles?.map((role) => (
               <label
                 key={role.id}
-                className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 solarized:hover:bg-solarized-base2 cursor-pointer transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
               >
                 <input
                   type="checkbox"
                   checked={selectedRoles.includes(role.id)}
-                  onChange={() => toggleRole(role.id)}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  onChange={() => handleToggleRole(role.id)}
+                  className="rounded border-border"
                 />
-                <div className="ml-3 flex-1">
-                  <div className="font-medium text-gray-900 dark:text-white solarized:text-solarized-base03">
-                    {role.name}
-                  </div>
+                <div className="flex-1">
+                  <div className="font-medium">{role.name}</div>
                   {role.description && (
-                    <div className="text-sm text-gray-500 dark:text-gray-400 solarized:text-solarized-base01">
+                    <div className="text-sm text-muted-foreground">
                       {role.description}
                     </div>
                   )}
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {role.permissions.map((perm) => (
-                      <Badge key={perm.id} variant="info">
-                        {perm.name}
-                      </Badge>
-                    ))}
-                  </div>
                 </div>
               </label>
             ))}
           </div>
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-2 justify-end">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => {
-                setIsRoleModalOpen(false)
-                setSelectedRoles([])
-              }}
+              variant="secondary"
+              onClick={() => setIsRoleModalOpen(false)}
             >
               Cancel
             </Button>
-            <Button onClick={handleSaveRoles} isLoading={assignRolesMutation.isPending}>
-              Save Roles
+            <Button onClick={handleAssignRoles} disabled={assignRolesMutation.isPending}>
+              {assignRolesMutation.isPending ? 'Saving...' : 'Save Roles'}
             </Button>
           </div>
         </div>

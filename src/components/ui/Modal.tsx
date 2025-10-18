@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect } from 'react'
 
 interface ModalProps {
   isOpen: boolean
@@ -48,11 +48,11 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
         {/* Modal panel */}
         <div
-          className={`relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full ${sizeClasses[size]}`}
+          className={`relative inline-block align-bottom bg-card rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full ${sizeClasses[size]}`}
         >
           {title && (
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+            <div className="px-6 py-4 border-b border-border">
+              <h3 className="text-lg font-semibold text-card-foreground">{title}</h3>
             </div>
           )}
           <div className="px-6 py-4">{children}</div>

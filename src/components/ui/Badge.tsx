@@ -1,6 +1,6 @@
 import React from 'react'
 
-type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'
+export type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info' | 'danger'
 
 interface BadgeProps {
   children: React.ReactNode
@@ -10,20 +10,14 @@ interface BadgeProps {
 
 export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {
   const variantClasses = {
-    default:
-      'bg-light-secondary-100 dark:bg-dark-secondary-800 solarized:bg-solarized-secondary-200 alt-light:bg-alt-light-secondary-200 alt-dark:bg-alt-dark-secondary-800 ' +
-      'text-light-secondary-800 dark:text-dark-secondary-200 solarized:text-solarized-secondary-800 alt-light:text-alt-light-secondary-800 alt-dark:text-alt-dark-secondary-200',
-    primary:
-      'bg-light-primary-100 dark:bg-dark-primary-900/30 solarized:bg-solarized-primary-100 alt-light:bg-alt-light-primary-100 alt-dark:bg-alt-dark-primary-900/30 ' +
-      'text-light-primary-800 dark:text-dark-primary-200 solarized:text-solarized-primary-800 alt-light:text-alt-light-primary-800 alt-dark:text-alt-dark-primary-200',
-    success:
-      'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-200',
-    warning:
-      'bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-200',
-    error:
-      'bg-error-100 dark:bg-error-900/30 text-error-800 dark:text-error-200',
-    info:
-      'bg-info-100 dark:bg-info-900/30 text-info-800 dark:text-info-200',
+    default: 'bg-secondary text-secondary-foreground',
+    primary: 'bg-primary/10 text-primary border border-primary/20',
+    secondary: 'bg-secondary text-secondary-foreground',
+    success: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800',
+    warning: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800',
+    error: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800',
+    danger: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800',
+    info: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800',
   }
 
   return (

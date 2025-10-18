@@ -1,0 +1,5 @@
+# Run lint-staged for staged files
+pnpm lint-staged
+
+# Run type checking
+pnpm run type-check

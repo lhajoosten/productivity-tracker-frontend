@@ -106,6 +106,7 @@ Desktop.ini
 *.temp
 .temp/
 .tmp/
+.tanstack/
 
 # Debug
 *.cpuprofile

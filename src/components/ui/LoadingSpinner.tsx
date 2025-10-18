@@ -8,7 +8,7 @@ export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   return (
     <div className="flex items-center justify-center">
       <div
-        className={`animate-spin rounded-full border-b-2 border-primary-600 ${sizeClasses[size]}`}
+        className={`animate-spin rounded-full border-b-2 border-primary ${sizeClasses[size]}`}
       />
     </div>
   )
@@ -18,7 +18,7 @@ export function LoadingPage({ message = 'Loading...' }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <LoadingSpinner size="lg" />
-      <p className="mt-4 text-gray-600 dark:text-gray-400">{message}</p>
+      <p className="mt-4 text-muted-foreground">{message}</p>
     </div>
   )
 }

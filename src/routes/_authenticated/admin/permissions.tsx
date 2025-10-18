@@ -5,8 +5,15 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { PermissionCreate } from '@/types/api'
+import type { Permission, PermissionCreate, PermissionUpdate } from '@/types/api'
 import { useToast } from '@/stores/toastStore'
+import { Table } from '@/components/ui/Table'
+import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Card } from '@/components/ui/Card'
 
 export const Route = createFileRoute('/_authenticated/admin/permissions')({
   component: PermissionsPage,
@@ -14,235 +21,282 @@ export const Route = createFileRoute('/_authenticated/admin/permissions')({
 
 const permissionSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
   resource: z.string().min(1, 'Resource is required'),
   action: z.string().min(1, 'Action is required'),
+  description: z.string().optional(),
 })
 
 type PermissionFormData = z.infer<typeof permissionSchema>
 
 function PermissionsPage() {
   const queryClient = useQueryClient()
-  const toast = useToast()
+  const { addToast } = useToast()
+  const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
-  const { data: permissions, isLoading } = useQuery({
+  const { data: permissions, isLoading: permissionsLoading } = useQuery({
     queryKey: ['permissions'],
-    queryFn: permissionApi.list,
+    queryFn: () => permissionApi.list(),
+  })
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<PermissionFormData>({
+    resolver: zodResolver(permissionSchema),
   })
 
   const createMutation = useMutation({
     mutationFn: (data: PermissionCreate) => permissionApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] })
+      addToast('Permission created successfully', 'success')
       setIsCreateModalOpen(false)
-      resetForm()
-      toast.success('Permission created successfully')
+      reset()
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to create permission')
+      addToast(error.response?.data?.detail || 'Failed to create permission', 'error')
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ permissionId, data }: { permissionId: string; data: PermissionUpdate }) =>
+      permissionApi.update(permissionId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permissions'] })
+      addToast('Permission updated successfully', 'success')
+      setIsEditModalOpen(false)
+      setSelectedPermission(null)
+    },
+    onError: (error: any) => {
+      addToast(error.response?.data?.detail || 'Failed to update permission', 'error')
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: permissionApi.delete,
+    mutationFn: (permissionId: string) => permissionApi.delete(permissionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] })
-      toast.success('Permission deleted successfully')
+      addToast('Permission deleted successfully', 'success')
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to delete permission')
+      addToast(error.response?.data?.detail || 'Failed to delete permission', 'error')
     },
   })
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset: resetForm,
-  } = useForm<PermissionFormData>({
-    resolver: zodResolver(permissionSchema),
-  })
-
-  const onSubmit = (data: PermissionFormData) => {
-    createMutation.mutate(data)
+  const handleEditPermission = (permission: Permission) => {
+    setSelectedPermission(permission)
+    reset({
+      name: permission.name,
+      resource: permission.resource,
+      action: permission.action,
+      description: permission.description || '',
+    })
+    setIsEditModalOpen(true)
   }
 
-  const handleDelete = (permissionId: string) => {
-    if (confirm('Are you sure you want to delete this permission?')) {
-      deleteMutation.mutate(permissionId)
+  const onSubmitCreate = (data: PermissionFormData) => {
+    createMutation.mutate({
+      name: data.name,
+      resource: data.resource,
+      action: data.action,
+      description: data.description || null,
+    })
+  }
+
+  const onSubmitUpdate = (data: PermissionFormData) => {
+    if (selectedPermission) {
+      updateMutation.mutate({
+        permissionId: selectedPermission.id,
+        data: {
+          name: data.name,
+          resource: data.resource,
+          action: data.action,
+          description: data.description || null,
+        },
+      })
     }
   }
 
-  if (isLoading) {
+  if (permissionsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center h-96">
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
 
   // Group permissions by resource
-  const groupedPermissions = permissions?.reduce((acc, permission) => {
-    if (!acc[permission.resource]) {
-      acc[permission.resource] = []
-    }
-    acc[permission.resource].push(permission)
-    return acc
-  }, {} as Record<string, typeof permissions>)
+  const groupedPermissions = permissions?.reduce(
+    (acc, perm) => {
+      if (!acc[perm.resource]) {
+        acc[perm.resource] = []
+      }
+      acc[perm.resource].push(perm)
+      return acc
+    },
+    {} as Record<string, typeof permissions>
+  )
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Permission Management
-        </h1>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-        >
-          Create Permission
-        </button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Permission Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage system permissions and access controls
+          </p>
+        </div>
+        <Button onClick={() => setIsCreateModalOpen(true)}>Create Permission</Button>
       </div>
 
-      <div className="space-y-6">
-        {Object.entries(groupedPermissions || {}).map(([resource, perms]) => (
-          <div key={resource} className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
-                {resource}
-              </h2>
+      {groupedPermissions &&
+        Object.entries(groupedPermissions).map(([resource, perms]) => (
+          <Card key={resource}>
+            <div className="p-6 border-b border-border">
+              <h2 className="text-xl font-semibold capitalize">{resource}</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {perms.length} permission{perms.length !== 1 ? 's' : ''}
+              </p>
             </div>
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <Table>
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Action
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th>Name</th>
+                  <th>Action</th>
+                  <th>Description</th>
+                  <th>Created</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {perms?.map((permission) => (
+              <tbody>
+                {perms.map((permission) => (
                   <tr key={permission.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {permission.name}
+                    <td className="font-medium">{permission.name}</td>
+                    <td>
+                      <Badge variant="secondary">{permission.action}</Badge>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {permission.description || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {permission.action}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleDelete(permission.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400"
-                      >
-                        Delete
-                      </button>
+                    <td>{permission.description || '-'}</td>
+                    <td>{new Date(permission.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleEditPermission(permission)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => {
+                            if (
+                              confirm('Are you sure you want to delete this permission?')
+                            ) {
+                              deleteMutation.mutate(permission.id)
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </Card>
         ))}
-      </div>
 
       {/* Create Permission Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-              Create Permission
-            </h2>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Name
-                </label>
-                <input
-                  {...register('name')}
-                  type="text"
-                  placeholder="e.g., user:create"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Resource
-                </label>
-                <input
-                  {...register('resource')}
-                  type="text"
-                  placeholder="e.g., user, role, permission"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                {errors.resource && (
-                  <p className="mt-1 text-sm text-red-600">{errors.resource.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Action
-                </label>
-                <input
-                  {...register('action')}
-                  type="text"
-                  placeholder="e.g., CREATE, READ, UPDATE, DELETE"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                {errors.action && (
-                  <p className="mt-1 text-sm text-red-600">{errors.action.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Description
-                </label>
-                <textarea
-                  {...register('description')}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCreateModalOpen(false)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
-                >
-                  {createMutation.isPending ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </form>
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          reset()
+        }}
+        title="Create Permission"
+      >
+        <form onSubmit={handleSubmit(onSubmitCreate)} className="space-y-4">
+          <Input {...register('name')} label="Name" error={errors.name?.message} />
+          <Input
+            {...register('resource')}
+            label="Resource"
+            placeholder="e.g., user, task, project"
+            error={errors.resource?.message}
+          />
+          <Input
+            {...register('action')}
+            label="Action"
+            placeholder="e.g., create, read, update, delete"
+            error={errors.action?.message}
+          />
+          <Input
+            {...register('description')}
+            label="Description"
+            error={errors.description?.message}
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsCreateModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Creating...' : 'Create Permission'}
+            </Button>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
+
+      {/* Edit Permission Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setSelectedPermission(null)
+        }}
+        title="Edit Permission"
+      >
+        <form onSubmit={handleSubmit(onSubmitUpdate)} className="space-y-4">
+          <Input {...register('name')} label="Name" error={errors.name?.message} />
+          <Input
+            {...register('resource')}
+            label="Resource"
+            placeholder="e.g., user, task, project"
+            error={errors.resource?.message}
+          />
+          <Input
+            {...register('action')}
+            label="Action"
+            placeholder="e.g., create, read, update, delete"
+            error={errors.action?.message}
+          />
+          <Input
+            {...register('description')}
+            label="Description"
+            error={errors.description?.message}
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsEditModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

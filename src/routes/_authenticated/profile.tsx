@@ -1,337 +1,274 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/authStore'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { authApi, userApi } from '@/lib/api'
-import { format } from 'date-fns'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { authApi } from '@/lib/api'
 import type { UserUpdate, UserPasswordUpdate } from '@/types/api'
 import { useToast } from '@/stores/toastStore'
-import { Modal } from '@/components/ui/Modal'
+import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Badge } from '@/components/ui/Badge'
-import { Card } from '@/components/ui/Card'
 
 export const Route = createFileRoute('/_authenticated/profile')({
   component: ProfilePage,
 })
 
-const updateProfileSchema = z.object({
+const profileSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   email: z.string().email('Invalid email address'),
 })
 
-const passwordUpdateSchema = z.object({
-  current_password: z.string().min(1, 'Current password is required'),
-  new_password: z.string().min(8, 'New password must be at least 8 characters'),
-  confirm_password: z.string().min(1, 'Please confirm your password'),
-}).refine((data) => data.new_password === data.confirm_password, {
-  message: "Passwords don't match",
-  path: ['confirm_password'],
-})
+const passwordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Current password is required'),
+    new_password: z.string().min(8, 'New password must be at least 8 characters'),
+    confirm_password: z.string(),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: "Passwords don't match",
+    path: ['confirm_password'],
+  })
 
-type UpdateProfileFormData = z.infer<typeof updateProfileSchema>
-type PasswordUpdateFormData = z.infer<typeof passwordUpdateSchema>
+type ProfileFormData = z.infer<typeof profileSchema>
+type PasswordFormData = z.infer<typeof passwordSchema>
 
 function ProfilePage() {
   const { user, setUser } = useAuthStore()
+  const { addToast } = useToast()
   const queryClient = useQueryClient()
-  const toast = useToast()
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
-
-  const { data: currentUser, isLoading } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: authApi.me,
-    initialData: user || undefined,
-  })
-
-  const updateProfileMutation = useMutation({
-    mutationFn: (data: UserUpdate) => userApi.updateMe(data),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] })
-      setUser(data)
-      setIsEditModalOpen(false)
-      resetProfileForm()
-      toast.success('Profile updated successfully')
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to update profile')
-    },
-  })
-
-  const updatePasswordMutation = useMutation({
-    mutationFn: (data: UserPasswordUpdate) => userApi.updatePassword(data),
-    onSuccess: () => {
-      setIsPasswordModalOpen(false)
-      resetPasswordForm()
-      toast.success('Password changed successfully')
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to change password')
-    },
-  })
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   const {
     register: registerProfile,
     handleSubmit: handleSubmitProfile,
+    reset: resetProfile,
     formState: { errors: profileErrors },
-    reset: resetProfileForm,
-    setValue: setProfileValue,
-  } = useForm<UpdateProfileFormData>({
-    resolver: zodResolver(updateProfileSchema),
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      username: user?.username,
+      email: user?.email,
+    },
   })
 
   const {
     register: registerPassword,
     handleSubmit: handleSubmitPassword,
+    reset: resetPassword,
     formState: { errors: passwordErrors },
-    reset: resetPasswordForm,
-  } = useForm<PasswordUpdateFormData>({
-    resolver: zodResolver(passwordUpdateSchema),
+  } = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
   })
 
-  const handleEditProfile = () => {
-    if (currentUser) {
-      setProfileValue('username', currentUser.username)
-      setProfileValue('email', currentUser.email)
-      setIsEditModalOpen(true)
-    }
-  }
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: UserUpdate) => authApi.updateMe(data),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser)
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] })
+      addToast('Profile updated successfully', 'success')
+      setIsEditingProfile(false)
+    },
+    onError: (error: any) => {
+      addToast(error.response?.data?.detail || 'Failed to update profile', 'error')
+    },
+  })
 
-  const onSubmitProfile = (data: UpdateProfileFormData) => {
+  const updatePasswordMutation = useMutation({
+    mutationFn: (data: UserPasswordUpdate) => authApi.updatePassword(data),
+    onSuccess: () => {
+      addToast('Password changed successfully', 'success')
+      setIsChangingPassword(false)
+      resetPassword()
+    },
+    onError: (error: any) => {
+      addToast(error.response?.data?.detail || 'Failed to change password', 'error')
+    },
+  })
+
+  const onSubmitProfile = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data)
   }
 
-  const onSubmitPassword = (data: PasswordUpdateFormData) => {
-    updatePasswordMutation.mutate({
-      current_password: data.current_password,
-      new_password: data.new_password,
-    })
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    )
+  const onSubmitPassword = (data: PasswordFormData) => {
+    const { confirm_password, ...passwordData } = data
+    updatePasswordMutation.mutate(passwordData)
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white solarized:text-solarized-base03">
-          My Profile
-        </h1>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={handleEditProfile}>
-            Edit Profile
-          </Button>
-          <Button variant="outline" onClick={() => setIsPasswordModalOpen(true)}>
-            Change Password
-          </Button>
-        </div>
+    <div className="space-y-6 max-w-4xl">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Profile</h1>
+        <p className="text-muted-foreground mt-1">
+          Manage your account settings and preferences
+        </p>
       </div>
 
-      <div className="space-y-6">
-        {/* Basic Info Card */}
-        <Card>
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white solarized:text-solarized-base03 mb-4">
-              Basic Information
-            </h2>
-            <div className="flex items-center mb-6">
-              <div className="flex-shrink-0 h-20 w-20 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center shadow-lg">
-                <span className="text-white text-3xl font-bold">
-                  {currentUser?.username.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="ml-6">
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white solarized:text-solarized-base03">
-                  {currentUser?.username}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 solarized:text-solarized-base01">
-                  {currentUser?.email}
-                </p>
+      {/* Profile Information */}
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Profile Information</h2>
+          {!isEditingProfile && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                resetProfile({
+                  username: user?.username,
+                  email: user?.email,
+                })
+                setIsEditingProfile(true)
+              }}
+            >
+              Edit
+            </Button>
+          )}
+        </div>
+
+        {isEditingProfile ? (
+          <form onSubmit={handleSubmitProfile(onSubmitProfile)} className="space-y-4">
+            <Input
+              {...registerProfile('username')}
+              label="Username"
+              error={profileErrors.username?.message}
+            />
+            <Input
+              {...registerProfile('email')}
+              label="Email"
+              type="email"
+              error={profileErrors.email?.message}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsEditingProfile(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateProfileMutation.isPending}>
+                {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Username</p>
+              <p className="font-medium">{user?.username}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Email</p>
+              <p className="font-medium">{user?.email}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Status</p>
+              <div className="flex gap-2 mt-1">
+                {user?.is_active && <Badge variant="success">Active</Badge>}
+                {user?.is_superuser && <Badge variant="primary">Admin</Badge>}
               </div>
             </div>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-              <div>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 solarized:text-solarized-base01">
-                  Status
-                </dt>
-                <dd className="mt-1">
-                  <Badge variant={currentUser?.is_active ? 'success' : 'danger'}>
-                    {currentUser?.is_active ? 'Active' : 'Inactive'}
+            <div>
+              <p className="text-sm text-muted-foreground">Roles</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {user?.roles?.map((role) => (
+                  <Badge key={role.id} variant="secondary">
+                    {role.name}
                   </Badge>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 solarized:text-solarized-base01">
-                  Account Type
-                </dt>
-                <dd className="mt-1">
-                  <Badge variant={currentUser?.is_superuser ? 'warning' : 'default'}>
-                    {currentUser?.is_superuser ? 'Superuser' : 'Regular User'}
-                  </Badge>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 solarized:text-solarized-base01">
-                  Member Since
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white solarized:text-solarized-base03">
-                  {currentUser?.created_at && format(new Date(currentUser.created_at), 'PPP')}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 solarized:text-solarized-base01">
-                  Last Updated
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white solarized:text-solarized-base03">
-                  {currentUser?.updated_at
-                    ? format(new Date(currentUser.updated_at), 'PPP')
-                    : 'Never'}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </Card>
-
-        {/* Roles Card */}
-        <Card>
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white solarized:text-solarized-base03 mb-4">
-              Roles & Permissions
-            </h2>
-            {currentUser?.roles && currentUser.roles.length > 0 ? (
-              <div className="space-y-4">
-                {currentUser.roles.map((role) => (
-                  <div key={role.id} className="bg-gray-50 dark:bg-gray-700 solarized:bg-solarized-base2 rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 dark:text-white solarized:text-solarized-base03">
-                          {role.name}
-                        </h3>
-                        {role.description && (
-                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 solarized:text-solarized-base01">
-                            {role.description}
-                          </p>
-                        )}
-                        <div className="mt-3">
-                          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                            Permissions
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {role.permissions.map((permission) => (
-                              <Badge key={permission.id} variant="info">
-                                {permission.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 ))}
+                {(!user?.roles || user.roles.length === 0) && (
+                  <span className="text-sm text-muted-foreground">No roles assigned</span>
+                )}
               </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 solarized:text-solarized-base01 italic">
-                No roles assigned
-              </p>
-            )}
+            </div>
           </div>
-        </Card>
-      </div>
+        )}
+      </Card>
 
-      {/* Edit Profile Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false)
-          resetProfileForm()
-        }}
-        title="Edit Profile"
-      >
-        <form onSubmit={handleSubmitProfile(onSubmitProfile)} className="space-y-4">
-          <Input
-            label="Username"
-            {...registerProfile('username')}
-            error={profileErrors.username?.message}
-          />
-          <Input
-            label="Email"
-            type="email"
-            {...registerProfile('email')}
-            error={profileErrors.email?.message}
-          />
-          <div className="flex justify-end gap-3 mt-6">
+      {/* Change Password */}
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Change Password</h2>
+          {!isChangingPassword && (
             <Button
-              type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => {
-                setIsEditModalOpen(false)
-                resetProfileForm()
+                resetPassword()
+                setIsChangingPassword(true)
               }}
             >
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={updateProfileMutation.isPending}>
-              Save Changes
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Change Password Modal */}
-      <Modal
-        isOpen={isPasswordModalOpen}
-        onClose={() => {
-          setIsPasswordModalOpen(false)
-          resetPasswordForm()
-        }}
-        title="Change Password"
-      >
-        <form onSubmit={handleSubmitPassword(onSubmitPassword)} className="space-y-4">
-          <Input
-            label="Current Password"
-            type="password"
-            {...registerPassword('current_password')}
-            error={passwordErrors.current_password?.message}
-          />
-          <Input
-            label="New Password"
-            type="password"
-            {...registerPassword('new_password')}
-            error={passwordErrors.new_password?.message}
-          />
-          <Input
-            label="Confirm New Password"
-            type="password"
-            {...registerPassword('confirm_password')}
-            error={passwordErrors.confirm_password?.message}
-          />
-          <div className="flex justify-end gap-3 mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsPasswordModalOpen(false)
-                resetPasswordForm()
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={updatePasswordMutation.isPending}>
               Change Password
             </Button>
+          )}
+        </div>
+
+        {isChangingPassword ? (
+          <form onSubmit={handleSubmitPassword(onSubmitPassword)} className="space-y-4">
+            <Input
+              {...registerPassword('current_password')}
+              label="Current Password"
+              type="password"
+              error={passwordErrors.current_password?.message}
+            />
+            <Input
+              {...registerPassword('new_password')}
+              label="New Password"
+              type="password"
+              error={passwordErrors.new_password?.message}
+            />
+            <Input
+              {...registerPassword('confirm_password')}
+              label="Confirm New Password"
+              type="password"
+              error={passwordErrors.confirm_password?.message}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsChangingPassword(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updatePasswordMutation.isPending}>
+                {updatePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            For security reasons, we recommend changing your password regularly.
+          </p>
+        )}
+      </Card>
+
+      {/* Account Details */}
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold mb-4">Account Details</h2>
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Account ID</span>
+            <span className="font-mono text-xs">{user?.id}</span>
           </div>
-        </form>
-      </Modal>
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Created</span>
+            <span className="font-medium">
+              {user?.created_at && new Date(user.created_at).toLocaleDateString()}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Last Updated</span>
+            <span className="font-medium">
+              {user?.updated_at
+                ? new Date(user.updated_at).toLocaleDateString()
+                : 'Never'}
+            </span>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }
